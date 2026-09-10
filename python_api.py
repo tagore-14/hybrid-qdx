@@ -162,6 +162,7 @@ class QuantumBreastCancerPredictor:
 
 
 quantum_predictor = QuantumBreastCancerPredictor()
+quantum_execution_lock = threading.Lock()
 
 
 # ---------------------------------------------------------
@@ -171,13 +172,11 @@ quantum_predictor = QuantumBreastCancerPredictor()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Warmup all predictors in background threads so first queries don't hang
+    # Classical predictors can warm up independently.
     threading.Thread(target=classical_diabetes_predictor.train, daemon=True).start()
-    threading.Thread(target=quantum_diabetes_predictor.train, daemon=True).start()
     threading.Thread(target=classical_cancer_predictor.train, daemon=True).start()
-    threading.Thread(target=quantum_predictor.train, daemon=True).start()
     threading.Thread(target=classical_heart_predictor.train, daemon=True).start()
-    threading.Thread(target=quantum_heart_predictor.train, daemon=True).start()
+
     logger.info("FastAPI service started and ready.")
     yield
 
@@ -256,21 +255,22 @@ def predict(request: PredictionRequest) -> dict[str, Any]:
 async def quantum_predict(request: PredictionRequest) -> dict[str, Any]:
     try:
         disease = resolve_disease(request)
-        if disease == "breast_cancer":
-            result = await run_in_threadpool(
-                quantum_predictor.predict,
-                request.features
-            )
-        elif disease == "heart_disease":
-            result = await run_in_threadpool(
-                quantum_heart_predictor.predict,
-                request.features
-            )
-        else:
-            result = await run_in_threadpool(
-                quantum_diabetes_predictor.predict,
-                request.features
-            )
+        with quantum_execution_lock:
+            if disease == "breast_cancer":
+                result = await run_in_threadpool(
+                    quantum_predictor.predict,
+                    request.features
+                )
+            elif disease == "heart_disease":
+                result = await run_in_threadpool(
+                    quantum_heart_predictor.predict,
+                    request.features
+                )
+            else:
+                result = await run_in_threadpool(
+                    quantum_diabetes_predictor.predict,
+                    request.features
+                )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception:
@@ -311,4 +311,4 @@ def demo_patient(disease: str = "breast_cancer") -> dict[str, Any]:
         raise HTTPException(
             status_code=500,
             detail="Could not generate demo patient"
-        )
+        )

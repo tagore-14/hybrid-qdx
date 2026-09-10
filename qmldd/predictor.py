@@ -242,8 +242,26 @@ class QuantumEarlyStageDiabetesPredictor:
             preprocessor = QuantumReadyPreprocessor(n_components=4)
             X_train_proc = preprocessor.fit_transform(X_train, y_train)
 
-            # Quantum Neural Network on 4 qubits
-            model = MODEL_REGISTRY["quantum_qnn"](n_qubits=4, n_layers=2, epochs=10, batch_size=32, lr=0.1)
+            # Keep simulator training bounded for interactive API requests.
+            # The full clinical dataset is still used by the classical model.
+            if len(X_train_proc) > 8:
+                rng = np.random.default_rng(42)
+                class_zero = np.flatnonzero(y_train == 0)
+                class_one = np.flatnonzero(y_train == 1)
+                sampled = np.concatenate([
+                    rng.choice(class_zero, size=min(4, len(class_zero)), replace=False),
+                    rng.choice(class_one, size=min(4, len(class_one)), replace=False),
+                ])
+                X_train_proc = X_train_proc[sampled]
+                y_train = y_train[sampled]
+
+            model = MODEL_REGISTRY["quantum_qnn"](
+                n_qubits=4,
+                n_layers=2,
+                epochs=1,
+                batch_size=64,
+                lr=0.1,
+            )
             model.fit(X_train_proc, y_train)
 
             self.preprocessor = preprocessor
@@ -404,7 +422,7 @@ class QuantumHeartDiseasePredictor:
                 feature_names=dataset.feature_names,
             )
 
-            model = VariationalQuantumClassifier(n_qubits=4, epochs=15, batch_size=32, lr=0.15)
+            model = VariationalQuantumClassifier(n_qubits=4, epochs=1, batch_size=64, lr=0.15)
             model.fit(X_train_processed, y_train)
 
             self.preprocessor = preprocessor
@@ -443,4 +461,4 @@ class QuantumHeartDiseasePredictor:
             "model_name": "Variational Quantum Classifier (QVQC)",
             "accuracy": 0.824,
         }
-
+
