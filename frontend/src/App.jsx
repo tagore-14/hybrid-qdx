@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { API_BASE_URL, STREAMLIT_URL } from "./config";
+import { API_BASE_URL, STREAMLIT_EMBED_URL, STREAMLIT_URL } from "./config";
 import QuantumBioCanvas from "./QuantumBioCanvas";
 import JudgeComparisonStudio from "./JudgeComparisonStudio";
 import AuthModal from "./AuthModal";
@@ -2356,10 +2356,9 @@ export default function App() {
               {/* Embedded Frame */}
               <div style={{ width: "100%", height: "850px", borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255, 255, 255, 0.1)", background: "#0b1120", position: "relative" }}>
                 <iframe
-                  src={STREAMLIT_URL}
+                  src={STREAMLIT_EMBED_URL}
                   title="QuantumDx Streamlit Benchmark Studio"
                   style={{ width: "100%", height: "100%", border: "none" }}
-                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
                 />
               </div>
             </div>
