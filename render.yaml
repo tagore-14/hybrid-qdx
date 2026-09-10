@@ -22,7 +22,7 @@ services:
     autoDeploy: true
     envVars:
       - key: PYTHON_API_URL
-        value: https://quantumdx-engine.onrender.com
+        value: https://quantumdx-engine-d6n9.onrender.com
 
   # 3. Streamlit Interactive Benchmark Dashboard
   - type: web
