@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import threading
 from contextlib import asynccontextmanager
@@ -257,28 +258,39 @@ async def quantum_predict(request: PredictionRequest) -> dict[str, Any]:
         disease = resolve_disease(request)
         with quantum_execution_lock:
             if disease == "breast_cancer":
-                result = await run_in_threadpool(
-                    quantum_predictor.predict,
-                    request.features
+                quantum_task = run_in_threadpool(
+                    quantum_predictor.predict, request.features
                 )
             elif disease == "heart_disease":
-                result = await run_in_threadpool(
-                    quantum_heart_predictor.predict,
-                    request.features
+                quantum_task = run_in_threadpool(
+                    quantum_heart_predictor.predict, request.features
                 )
             else:
-                result = await run_in_threadpool(
-                    quantum_diabetes_predictor.predict,
-                    request.features
+                quantum_task = run_in_threadpool(
+                    quantum_diabetes_predictor.predict, request.features
                 )
+            result = await asyncio.wait_for(quantum_task, timeout=20)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception:
-        logger.exception("Quantum prediction failed")
-        raise HTTPException(
-            status_code=503,
-            detail="Quantum model unavailable, please retry"
-        )
+        logger.exception("Quantum prediction failed; using classical safety fallback")
+        disease = resolve_disease(request)
+        if disease == "breast_cancer":
+            fallback = await run_in_threadpool(classical_cancer_predictor.predict, request.features)
+        elif disease == "heart_disease":
+            fallback = await run_in_threadpool(classical_heart_predictor.predict, request.features)
+        else:
+            fallback = await run_in_threadpool(classical_diabetes_predictor.predict, request.features)
+        return {
+            "prediction": fallback["prediction"],
+            "probability": fallback["probability"],
+            "risk_score": fallback.get("risk_score", fallback["probability"]),
+            "healthy_confidence": fallback.get("healthy_confidence"),
+            "model_name": "Classical Safety Fallback (Quantum simulator unavailable)",
+            "accuracy": fallback.get("accuracy"),
+            "cv_accuracy": fallback.get("cv_accuracy"),
+            "quantum_fallback": True,
+        }
 
 
     return result
