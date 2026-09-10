@@ -23,6 +23,8 @@ services:
     envVars:
       - key: PYTHON_API_URL
         value: https://quantumdx-engine-d6n9.onrender.com
+      - key: VITE_STREAMLIT_URL
+        value: https://quantumdx-dashboard-d6n9.onrender.com
 
   # 3. Streamlit Interactive Benchmark Dashboard
   - type: web
