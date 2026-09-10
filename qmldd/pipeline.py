@@ -3,6 +3,7 @@ import time
 from pathlib import Path
 from typing import Callable, Optional
 
+import numpy as np
 import yaml
 from sklearn.model_selection import train_test_split
 
@@ -20,6 +21,36 @@ PREPROCESSOR_REGISTRY = {
     "pca": lambda n_components, **kw: QuantumReadyPreprocessor(n_components=n_components),
     "qaoa_feature_select": lambda n_components, **kw: QAOAFeatureSelector(n_components=n_components, **kw),
 }
+
+
+def _safe_train_test_split(X, y, test_size, random_state):
+    """Split small custom datasets without stratify failing on rare classes."""
+    labels, counts = np.unique(y, return_counts=True)
+    if len(labels) < 2:
+        raise ValueError("The diagnosis column must contain at least two classes.")
+
+    n_test = max(1, int(np.ceil(len(y) * test_size))) if isinstance(test_size, float) else int(test_size)
+    n_train = len(y) - n_test
+    can_stratify = counts.min() >= 2 and n_test >= len(labels) and n_train >= len(labels)
+    if can_stratify:
+        return train_test_split(
+            X, y, test_size=test_size, random_state=random_state, stratify=y
+        )
+
+    train_idx, test_idx = train_test_split(
+        np.arange(len(y)), test_size=test_size, random_state=random_state
+    )
+    if len(np.unique(y[train_idx])) < 2:
+        missing_labels = set(labels) - set(np.unique(y[train_idx]))
+        swap_candidates = [i for i in test_idx if y[i] in missing_labels]
+        if not swap_candidates:
+            raise ValueError("The dataset does not have enough samples from both classes for training.")
+        swap_in = swap_candidates[0]
+        swap_out = train_idx[0]
+        train_idx = np.array([swap_in if i == swap_out else i for i in train_idx])
+        test_idx = np.array([swap_out if i == swap_in else i for i in test_idx])
+
+    return X[train_idx], X[test_idx], y[train_idx], y[test_idx]
 
 
 def load_config(config_path: str) -> dict:
@@ -45,8 +76,8 @@ def run_on_dataset(
     test_size = config.get("test_size", 0.25)
     random_state = config.get("random_state", 42)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        dataset.X, dataset.y, test_size=test_size, random_state=random_state, stratify=dataset.y
+    X_train, X_test, y_train, y_test = _safe_train_test_split(
+        dataset.X, dataset.y, test_size=test_size, random_state=random_state
     )
 
     prep_cfg = dict(config["preprocessing"])

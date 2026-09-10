@@ -350,7 +350,13 @@ else:
                 status_box.write(f"Computed explainability for {payload['model_type']}.")
 
         t_start = time.time()
-        result_data = run_on_dataset(dataset, config, verbose=False, progress_cb=on_progress)
+        try:
+            result_data = run_on_dataset(dataset, config, verbose=False, progress_cb=on_progress)
+        except ValueError as exc:
+            status_box.update(label="Benchmark could not run", state="error")
+            st.error(str(exc))
+            st.info("Add at least two rows for each diagnosis class, then run the benchmark again.")
+            st.stop()
         status_box.update(label=f"Benchmark complete in {time.time() - t_start:.1f}s", state="complete")
 
         st.success(f"Results saved to `{output_path.relative_to(RESULTS_DIR.parent)}` - also available under 'View saved results'.")
